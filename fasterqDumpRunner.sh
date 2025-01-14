@@ -1,4 +1,18 @@
-#!/bin/sh
+#!/bin/bash
+
+#  scRNASeq.sh
+#
+#
+#  Created by Cooper Penner on 12/16/24.
+#  chatgpt was used to quickly sort through and screen software packages, ie "hey # chatgpt what might be a rapid way to download a set of fastq files
+
+
+# creating a new conda environment for scRNASeq
+
+conda create -n scRNASeq -y
+conda activate scRNASeq
+conda install -c bioconda sra-tools -y
+
 
 #  fasterqDumpRunner.sh
 #  
