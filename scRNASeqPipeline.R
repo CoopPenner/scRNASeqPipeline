@@ -1,15 +1,8 @@
 
 #overall set of call functions to implement seurat workflow
 
-#1 get all relevant pacakges 
+#1 package setup
 
-
-# Install if not already installed
-if (!requireNamespace("Seurat", quietly = TRUE)) {
-  install.packages("Seurat")
-  install.packages("leiden")
-  install.packages("monocle3")
-}
 
 
 
@@ -17,6 +10,9 @@ if (!requireNamespace("Seurat", quietly = TRUE)) {
 library(Seurat)
 library(Matrix)
 library(dplyr)
+library(ggplot2)
+library(monocle3)
+library(SeuratWrappers)
 
 # Define file paths for matrices right now I am excluding the first patient in this paper because the basic read quality metrics were way off
 matrix_files <- list(
@@ -27,8 +23,7 @@ matrix_files <- list(
 )
 
 # Load data from each matrix and create Seurat objects
-seurat_objects <- lapply(names(matrix_files), function(sample) {
-  # Load the matrix
+allCells<- lapply(names(matrix_files), function(sample) {
   matrix_path <- matrix_files[[sample]]
   matrix <- readMM(matrix_path)
   
@@ -40,100 +35,109 @@ seurat_objects <- lapply(names(matrix_files), function(sample) {
   rownames(matrix) <- features
   colnames(matrix) <- barcodes
   
-  # CreateSeurat object
-  seurat_obj <- CreateSeuratObject(
+  # Create Seurat object
+  allCells <- CreateSeuratObject(
     counts = matrix,
     project = sample,
     min.cells = 3,        # Genes must be expressed in at least 3 cells
     min.features = 200    # Cells must express at least 200 genes
   )
-  
-  return(seurat_obj)
+  #this is based on other papers, I think it's reasonable
+  return(allCells)
 })
 
-# Merge all Seurat objects into one
-seurat_object <- Reduce(function(x, y) merge(x, y), seurat_objects)
+# Merge Seurat objects into one
+allCells <- Reduce(function(x, y) merge(x, y), allCells)
 
 
 # Add mitochondrial transcript info
-seurat_object[["percent.mt"]] <- PercentageFeatureSet(seurat_object, pattern = "\tMT-")
+allCells[["percent.mt"]] <- PercentageFeatureSet(allCells, pattern = "\tMT-")
 
 
 
 # Apply filters Here I am removing cells with less than 200 or greater than 3000 individual transcripts (should get rid of many doublets and other non-descriptive low count cells)
-seurat_object <- subset(
-  seurat_object,
+allCells <- subset(
+  allCells,
   subset = nFeature_RNA > 200 & nFeature_RNA < 3000 & percent.mt < 15
 )
 
 
 
 #normalizing data (this is all the default currently): for each cell are divided by the total counts for that cell and multiplied by the scale.factor. This is then natural-log transformed using log1p
-seurat_object <- NormalizeData(seurat_object, normalization.method = "LogNormalize", scale.factor = 10000)
+allCells <- NormalizeData(allCells, normalization.method = "LogNormalize", scale.factor = 10000)
 
 
 
 # the gene names were output in a weird tab-delimted format, fixing it for plotting
-gene_symbols <- sapply(strsplit(rownames(seurat_object), "\t"), function(x) x[2])
-rownames(seurat_object) <- make.unique(gene_symbols)
+gene_symbols <- sapply(strsplit(rownames(allCells), "\t"), function(x) x[2])
+rownames(allCells) <- make.unique(gene_symbols)
 
 
 
 # let's start by just nabbing highly differentially expressed genes
-seurat_object <- FindVariableFeatures(seurat_object, selection.method = "vst", nfeatures = 2000)
+allCells <- FindVariableFeatures(allCells, selection.method = "vst", nfeatures = 2000)
 
 
 
-# Identify the 200 most highly variable genes
-top20 <- head(VariableFeatures(seurat_object), 20)
-
-
-
-
+# Identify the 20 most highly variable genes
+top20 <- head(VariableFeatures(allCells), 20)
 
 
 # plot variable features with and without labels
-plot1 <- VariableFeaturePlot(seurat_object)
-plot2 <- LabelPoints(plot = plot1, points = top20, repel = TRUE)
-plot1 + plot2
+#plot1 <- VariableFeaturePlot(allCells)
+#plot2 <- LabelPoints(plot = plot1, points = top20, repel = TRUE)
+#plot1 + plot2
 
 
-## ok now onto PCA stuff
+## ok now onto clustering
+
 # Scale the data
-seurat_object <- ScaleData(seurat_object)
+allCells <- ScaleData(allCells)
 
-seurat_object <- RunPCA(seurat_object, features = VariableFeatures(object = seurat_object))
+#run PCA
+allCells <- RunPCA(allCells, features = VariableFeatures(object = allCells))
 
 
-#checking out loadings (the irritating way gene names are input makes this a lil hard to look at rn 1/15/25)
-VizDimLoadings(seurat_object, dims = 1:4, reduction = "pca")
+#checking out loadings 
+VizDimLoadings(allCells, dims = 1:4, reduction = "pca")
 
 #basic PCA plot w/ 2000 most diff expressed genes
-DimPlot(seurat_object, reduction = "pca") + NoLegend()
+DimPlot(allCells, reduction = "pca") + NoLegend()
 
 #now looking at cells from across the spectrum to really check out how things are divided
 
-DimHeatmap(seurat_object, dims = 1:5, cells = 500,  balanced = TRUE)
+DimHeatmap(allCells, dims = 1:5, cells = 500,  balanced = TRUE)
+
+#now an elbow plot to see which PCAs get fed into UMAP
+ElbowPlot(allCells)
 
 
-ElbowPlot(seurat_object)
+# based on elbow plot I will use PCA 1:14 
 
+allCells <- FindNeighbors(allCells, dims = 1:14) #nearest nearest neighbor analysis
+allCells <- FindClusters(allCells, resolution = .5) # find cluster, I didn't mess with the resolution much... just using what seems standard in literature
 
-#now finding nearest neighbors based on PCA space, based on elbow plot I will use PCA 1:14 
+allCells <- RunUMAP(allCells, dims = 1:14) #run unmap
 
-seurat_object <- FindNeighbors(seurat_object, dims = 1:14)
-seurat_object <- FindClusters(seurat_object, resolution = .5)
+DimPlot(allCells, reduction = "umap", label='true') #plot it all
 
-seurat_object <- RunUMAP(seurat_object, dims = 1:14)
-
-DimPlot(seurat_object, reduction = "umap", label='true')
-
-seurat_object <- JoinLayers(seurat_object, assay = "RNA")
+allCells <- JoinLayers(allCells, assay = "RNA") # got this step from chatgpt, not totally clear on how this seurat object is 
 
 #let's do a quick screen to confirm what our clusters are
-FeaturePlot(seurat_object, features = c("GAD2","SLC17A6","GRIK1", "TH", "CADPS2")) 
+FeaturePlot(allCells, features = c("GAD2","SLC17A6","GRIK1", "TH", "CADPS2")) 
 
-FeaturePlot(seurat_object, features = c("VCAN","MOBP","AQP4","FOXJ1", "PDGFRB","CLDN5","CD74","TTR"))
+FeaturePlot(allCells, features = c("VCAN","MOBP","AQP4","FOXJ1", "PDGFRB","CLDN5","CD74","TTR"))
+FeaturePlot(allCells, features = c("CD74","CD163"))
+
+
+allCells <- JoinLayers(allCells, assay = "RNA") # got this step from chatgpt, not totally clear on how this seurat object is designed, kinda weird to work w/
+
+cluster0.markers <- FindMarkers(allCells, ident.1 = 2, ident.2 = c(13))
+head(cluster0.markers, n = 50)
+# what are the differences w/ this freak population, ie should we remove it?
+# answer yes, top transcript is MOG, yikes, yuck, some kind of oligo thing? I will name accordingly
+
+
 
 
 #with these parameters 
@@ -151,46 +155,46 @@ FeaturePlot(seurat_object, features = c("VCAN","MOBP","AQP4","FOXJ1", "PDGFRB","
 
 
 
+
+
+
 new.cluster.ids <- c("Oligo 1", "Oligo 2", "Microglia", "Oligo 3", "Oligo 4", "OPCs", "Astrocyte1","Endothelial Cells", "Excitatory Neurons", "Astrocyte2",  
                      "Pericytes", "Ependymal cells", "Oligo 5", "CSF1R expressing Oligo", "Gabaergic Neurons")
-names(new.cluster.ids) <- levels(seurat_object)
-seurat_object <- RenameIdents(seurat_object, new.cluster.ids)
-DimPlot(seurat_object, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
+names(new.cluster.ids) <- levels(allCells)
+allCells <- RenameIdents(allCells, new.cluster.ids)
+DimPlot(allCells, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 
 
 
-cluster0.markers <- FindMarkers(seurat_object, ident.1 = 2, ident.2 = c(13))
-head(cluster0.markers, n = 50)
-# what are the differences
 
 
 #let's look at the proportion of GPNMB expressing cells
 
 
 # Define a detection threshold 
-gpnmb_expression <- FetchData(seurat_object, vars = "GPNMB")
+gpnmb_expression <- FetchData(allCells, vars = "GPNMB")
 
 # Convert to binary
 gpnmb_detected <- gpnmb_expression > 0
 
 
 # Add GPNMB detection as metadata to Seurat object
-seurat_object$GPNMB_Expressed <- gpnmb_detected
+allCells$GPNMB_Expressed <- gpnmb_detected
 
 
-seurat_object$cluster_names <- Idents(seurat_object)
+allCells$cluster_names <- Idents(allCells)
 
 
 
 # Fetch GPNMB expression and convert to binary (expressed or not)
-gpnmb_expression <- FetchData(seurat_object, vars = "GPNMB")
-gpnmb_detected <- gpnmb_expression > 2
+gpnmb_expression <- FetchData(allCells, vars = "GPNMB")
+gpnmb_detected <- gpnmb_expression > 1
 
 # Add the binary GPNMB expression to the metadata
-seurat_object$GPNMB_Expressed <- gpnmb_detected
+allCells$GPNMB_Expressed <- gpnmb_detected
 
 # Calculate proportions based on renamed cluster identities
-gpnmb_proportion <- seurat_object@meta.data %>%
+gpnmb_proportion <- allCells@meta.data %>%
   dplyr::group_by(cluster_names) %>%  # Use the renamed cluster names
   dplyr::summarize(Proportion = mean(GPNMB_Expressed))
 
@@ -208,9 +212,13 @@ ggplot(gpnmb_proportion, aes(x = cluster_names, y = Proportion, fill = cluster_n
 
 
 
-#ok, now let's just subcluster 2
+#ok, now let's just subcluster our microglia and go from there
 
-microGliaOnly <- subset(seurat_object, idents = "Microglia")
+microGliaOnly <- subset(allCells, idents = "Microglia")
+
+
+FeaturePlot(microGliaOnly, features = c("P2RY12","CX3CR1", "CD74","CD163","MIF","HSP90AA1", "GPNMB","TREM2","APOE","LPL","CLEC7A"))
+FeaturePlot(microGliaOnly, features = c("CD163"))
 
 
 FeaturePlot(microGliaOnly, features = c("GPNMB","TREM2","APOE",  "CD74","MIF","P2RY12","CX3CR1","HSP90AA1"))
@@ -233,7 +241,9 @@ microGliaOnly <- FindClusters(microGliaOnly, resolution = 0.25)
 # Visualize the clusters within microglia
 DimPlot(microGliaOnly, reduction = "umap", label = TRUE)
 
-
+new.cluster.ids <- c("Homeostatic", "Transition","DAM","Homeostatic2")
+names(new.cluster.ids) <- levels(microGliaOnly)
+microGliaOnly <- RenameIdents(microGliaOnly, new.cluster.ids)
 
 #looks good, ok now let's look at the primary difference between putative DAM microglia and the others
 
@@ -266,48 +276,77 @@ microGliaOnly.markers %>%
 
 # 
 
-new.cluster.ids <- c("Homeostatic", "Transition","DAM","Homeostatic2")
-names(new.cluster.ids) <- levels(microGliaOnly)
-microGliaOnly <- RenameIdents(microGliaOnly, new.cluster.ids)
+
 
 
 microGliaOnly.markers %>%
   group_by(cluster) %>%
   dplyr::filter(avg_log2FC > 1) %>%
-  slice_head(n = 4) %>%
+  slice_head(n = 5) %>%
   ungroup() -> top10
 DoHeatmap(microGliaOnly, features = top10$gene) + NoLegend()
 
 ## on to frank pseudotime, woohoo!
-
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-BiocManager::install(version = "3.14")
+#
 
 
 
-install.packages("monocle3")
-install.packages("SeuratWrappers")
+
 
 library(monocle3)
-library(SeuratWrappers)
 
 # Convert Seurat object to Monocle3 CDS (Cell Data Set)
-cds <- as.cell_data_set(microglia_cells)
+cds <- as.cell_data_set(microGliaOnly)
+cds
+#reorienting data correctly, thank you to bionformagician who covers this explicitly in her video https://www.youtube.com/watch?v=iq4T_uzMFcY
 
-# Pre-process the data
-cds <- preprocess_cds(cds, num_dim = 50)
-
-# Reduce dimensions
-cds <- reduce_dimension(cds, reduction_method = "UMAP")
-
-# Visualize cells
-plot_cells(cds, color_cells_by = "ident")
+fData(cds)$gene_short_name <- rownames(fData(cds) ) 
 
 
+#retrieve clustering information so we can integrate seurat w/ monocle3
+
+#1 add partition
+recreate.partition <-c(rep(1,length(cds@colData@rownames))) #making an empty vector (we want everything to be one partition since we are only looking at microglia)
+names(recreate.partition) <- cds@colData@rownames
+recreate.partition<- as.factor(recreate.partition)
+
+cds@clusters$UMAP$partitions <-recreate.partition
+#add cluster info
+list_cluster <- microGliaOnly@active.ident
+cds@clusters$UMAP$clusters <-list_cluster
+#add umap coordinates
+
+cds@int_colData@listData$reducedDims$UMAP <- microGliaOnly@reductions$umap@cell.embeddings
+
+#plot to make sure the transfer worked
+
+plot_cells(cds, color_cells_by='cluster',
+           label_groups_by_cluster = FALSE,
+           group_label_size=5) +
+  theme(legend.position="right")
+
+
+cluster.names<- plot_cells(cds, color_cells_by='cluster',
+           label_groups_by_cluster = FALSE,
+           group_label_size=5) +
+  scale_color_manual(values= c('red', 'blue','green','maroon')) +
+  theme(legend.position="right")
 
 
 
+# Learn the trajectory graph
+cds <- learn_graph(cds, use_partition=FALSE)
+plot_cells(cds, color_cells_by= 'cluster')
+
+# Set root cells based on the "Homeostatic" cluster
+cds <- order_cells(cds, reduction_method= 'UMAP', root_cells = colnames(cds[,clusters(cds) == 2] ))
+
+# Visualize the trajectory
+plot_cells(cds, color_cells_by = "seurat_clusters", show_trajectory_graph = TRUE)
+
+
+# Plot GPNMB expression over pseudotime
+plot_genes_in_pseudotime(cds, genes = c("GPNMB"))
 
 # plot variable features 
 plot1 <- VariableFeaturePlot(cluster3.markers)
