@@ -9,11 +9,12 @@
 # now rerunning
 
 
-FASTQ_DIR="/Volumes/PC60/PDMidBrainFastq_smajic_2022"
+FASTQ_DIR="/Volumes/PC60/PDMidBrainFastq_smajic_2022/hcPt"
 GENOME_DIR="/Users/pennerc/Desktop/star_genome_index"
 OUTPUT_DIR="/Users/pennerc/Desktop/STARsolo_Output"
 WHITELIST="/Users/pennerc/Desktop/refdata-gex-GRCh38-2024-A/whitelist.txt"
 GTF_FILE="/Users/pennerc/Desktop/refdata-gex-GRCh38-2024-A/genes/genes.gtf"
+
 
 mkdir -p "$OUTPUT_DIR"
 

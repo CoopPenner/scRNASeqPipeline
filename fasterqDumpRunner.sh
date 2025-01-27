@@ -11,6 +11,9 @@
 
 conda create -n scRNASeq -y
 conda activate scRNASeq
+
+
+
 conda install -c bioconda sra-tools -y
 
 
