@@ -5,7 +5,6 @@
 
 
 
-
 # Load necessary libraries
 library(Seurat)
 library(Matrix)
@@ -13,13 +12,13 @@ library(dplyr)
 library(ggplot2)
 library(monocle3)
 library(SeuratWrappers)
-
+library(EnhancedVolcano)
 # Define file paths for matrices right now I am excluding the first patient in this paper because the basic read quality metrics were way off
 matrix_files <- list(
   SRR12621863 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621863_S1_Solo.out/Gene/filtered/matrix.mtx",
   SRR12621864 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621864_S1_Solo.out/Gene/filtered/matrix.mtx",
   SRR12621865 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621865_S1_Solo.out/Gene/filtered/matrix.mtx",
-  SRR12621866 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621866_S1_Solo.out/Gene/filtered/matrix.mtx"
+  SRR12621862 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621866_S1_Solo.out/Gene/filtered/matrix.mtx"
 )
 
 # Load data from each matrix and create Seurat objects
@@ -117,7 +116,7 @@ ElbowPlot(allCells)
 allCells <- FindNeighbors(allCells, dims = 1:14) #nearest nearest neighbor analysis
 allCells <- FindClusters(allCells, resolution = .5) # find cluster, I didn't mess with the resolution much... just using what seems standard in literature
 
-allCells <- RunUMAP(allCells, dims = 1:14) #run unmap
+allCells <- RunUMAP(allCells, dims = 1:14, n_neighbors=30, min_dist=.3) #run unmap
 
 DimPlot(allCells, reduction = "umap", label='true') #plot it all
 
@@ -217,11 +216,11 @@ ggplot(gpnmb_proportion, aes(x = cluster_names, y = Proportion, fill = cluster_n
 microGliaOnly <- subset(allCells, idents = "Microglia")
 
 
-FeaturePlot(microGliaOnly, features = c("P2RY12","CX3CR1", "CD74","CD163","MIF","HSP90AA1", "GPNMB","TREM2","APOE","LPL","CLEC7A"))
-FeaturePlot(microGliaOnly, features = c("CD163"))
+FeaturePlot(microGliaOnly, features = c("P2RY12","CX3CR1","TMEM119", "CD74","CD163","GPNMB","APOE","LPL","PTPRG","SPP1", "CLEC7A","TREM2"))
+FeaturePlot(microGliaOnly, features = c("AIF1"))
 
 
-FeaturePlot(microGliaOnly, features = c("GPNMB","TREM2","APOE",  "CD74","MIF","P2RY12","CX3CR1","HSP90AA1"))
+FeaturePlot(microGliaOnly, features = c("P2RY12","CX3CR1","GPNMB","APOE",  "HSP90AA1","IL1B"))
 
 
 FeaturePlot(seurat_object, features = c("GPNMB", "CD163", "SAT1", "TALAM1", "TREM2","APOE",  "CD74","P2RY12","CX3CR1"))
@@ -232,7 +231,21 @@ FeaturePlot(microGliaOnly, features = c("GPNMB", "CD163", "CD74", "ATP1A1", "ATP
 #VlnPlot(seurat_object, features = c("GPNMB","P2RY12","TMEM119","IBA1", "TREM2","LPL","CLEC7A","APOE"))
 
 
+FeaturePlot(microGliaOnly, features = c("VIC","GAPDH","PPIA","ACTB",  "NED", "JUN","UBC","HMBS","TBP"))
 
+
+FeaturePlot(microGliaOnly, features = c("Iba1","TREM2","CXC3R1","P2RY12",  "TMEM119", "CD43","CD41","CD235a","CD44"))
+
+FeaturePlot(microGliaOnly, features = c("ADAM10","Syndecan-4","OAZ1","GAPDH",  "ACTB", "RPL27","CST3","HEXB","CD33"))
+
+FeaturePlot(microGliaOnly, features = c("ADAM10","Syndecan-4","OAZ1","GAPDH",  "ACTB", "RPL27","CST3","HEXB","CD33"))
+
+FeaturePlot(microGliaOnly, features = c("ADAM10","Syndecan-4","OAZ1","GAPDH",  "ACTB", "RPL27","CST3","HEXB","CD33"))
+
+
+FeaturePlot(microGliaOnly, features = c("P2RY13","PTPRC-4","PU.1","RUNX1",  "APOE", "CLEC7A","LPL","ABCA7","GPR141", "COLEC12","IL6","IL1B","TNFA"))
+
+FeaturePlot(microGliaOnly, features= c("AIF1","RPL27"))
 
 #re-run clustering within the microglia subset 
 microGliaOnly <- FindNeighbors(microGliaOnly, dims = 1:14)
@@ -244,6 +257,9 @@ DimPlot(microGliaOnly, reduction = "umap", label = TRUE)
 new.cluster.ids <- c("Homeostatic", "Transition","DAM","Homeostatic2")
 names(new.cluster.ids) <- levels(microGliaOnly)
 microGliaOnly <- RenameIdents(microGliaOnly, new.cluster.ids)
+
+
+
 
 #looks good, ok now let's look at the primary difference between putative DAM microglia and the others
 
@@ -286,16 +302,53 @@ microGliaOnly.markers %>%
   ungroup() -> top10
 DoHeatmap(microGliaOnly, features = top10$gene) + NoLegend()
 
+# let's also make some volcano plots
+
+EnhancedVolcano(DAMvsHomeo.markers , 
+                rownames(DAMvsHomeo.markers ),
+                x ="avg_log2FC", 
+                y ="p_val",
+                title = 'Putative DAM cluster vs Putative Homeostatic Cluster',
+                pCutoff = 10e-6,
+                FCcutoff = 1,
+                pointSize = 3.0,
+                labSize = 6.0)
+
+
+EnhancedVolcano(DAMvsMid.markers , 
+                rownames(DAMvsMid.markers ),
+                x ="avg_log2FC", 
+                y ="p_val",
+                title = 'Putative DAM cluster vs Putative Transition Cluster',
+                pCutoff = 10e-6,
+                FCcutoff = 1,
+                pointSize = 3.0,
+                labSize = 6.0)
+
+
+EnhancedVolcano(MidvsHomeo.markers , 
+                rownames(MidvsHomeo.markers ),
+                x ="avg_log2FC", 
+                y ="p_val",
+                title = 'Putative Transition cluster vs Homeostatic Transition Cluster',
+                pCutoff = 10e-6,
+                FCcutoff = 1,
+                pointSize = 3.0,
+                labSize = 6.0)
+
+
+
+
+
+
 ## on to frank pseudotime, woohoo!
-#
-
-
-
-
-
-library(monocle3)
 
 # Convert Seurat object to Monocle3 CDS (Cell Data Set)
+#removing the homeostatic 2 cluster (it messes with trajectory analysis)
+microGliaOnly <- subset(microGliaOnly, idents = c("DAM", "Homeostatic", "Transition"))
+
+
+
 cds <- as.cell_data_set(microGliaOnly)
 cds
 #reorienting data correctly, thank you to bionformagician who covers this explicitly in her video https://www.youtube.com/watch?v=iq4T_uzMFcY
@@ -318,20 +371,6 @@ cds@clusters$UMAP$clusters <-list_cluster
 
 cds@int_colData@listData$reducedDims$UMAP <- microGliaOnly@reductions$umap@cell.embeddings
 
-#plot to make sure the transfer worked
-
-plot_cells(cds, color_cells_by='cluster',
-           label_groups_by_cluster = FALSE,
-           group_label_size=5) +
-  theme(legend.position="right")
-
-
-cluster.names<- plot_cells(cds, color_cells_by='cluster',
-           label_groups_by_cluster = FALSE,
-           group_label_size=5) +
-  scale_color_manual(values= c('red', 'blue','green','maroon')) +
-  theme(legend.position="right")
-
 
 
 # Learn the trajectory graph
@@ -339,19 +378,387 @@ cds <- learn_graph(cds, use_partition=FALSE)
 plot_cells(cds, color_cells_by= 'cluster')
 
 # Set root cells based on the "Homeostatic" cluster
-cds <- order_cells(cds, reduction_method= 'UMAP', root_cells = colnames(cds[,clusters(cds) == 2] ))
+
+
+cds_subset <- choose_cells(cds) #here I subset because there was a tiny cluster away from the primary homeostatic bunch that heavily weighted psuedotime output
+
+cds <- order_cells(cds_subset, reduction_method= 'UMAP', root_cells = colnames(cds_subset[,clusters(cds_subset) == 'Homeostatic'] ))
 
 # Visualize the trajectory
-plot_cells(cds, color_cells_by = "seurat_clusters", show_trajectory_graph = TRUE)
+plot_cells(cds,
+           color_cells_by ='pseudotime',
+           label_groups_by_cluster = FALSE,
+           label_branch_points = FALSE,
+           label_roots = FALSE,
+           label_leaves= FALSE)
 
+
+#find genes that are differentially expressed across the trajectory
+
+deg_micro <- graph_test(cds, neighbor_graph = 'principal_graph', cores=4 )
+
+
+
+library(ggplot2)
+
+deg_micro %>%
+  arrange(q_value) %>%
+  filter(status =='OK') %>%
+  head(200)
+
+# Filter for genes with Moran's I > 0.1 and rank by q-value
+top_genes <- deg_micro %>%
+  filter(morans_I > 0.1) %>%   # Select genes with strong spatial correlation
+  arrange(q_value) %>%         # Rank by q-value (ascending order)
+  head(50)                    # Select top 50 genes
+
+# Display the table
+print(top_genes)
+
+# Create bar plot of Moran's I values for top genes
+ggplot(top_genes, aes(x = reorder(gene_short_name, morans_I), y = morans_I, fill = -log10(q_value))) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top Genes by Moran's I",
+    x = "Gene",
+    y = "Moran's I Value",
+    fill = "-log10(q-value)"
+  ) +
+  scale_fill_gradient(low = "blue", high = "red") +  # Color gradient for significance
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 8), 
+    plot.title = element_text(hjust = 0.5)
+  )
+
+
+FeaturePlot(microGliaOnly, features = c("RAB42","CD163","MALAT1","CD74","TALAM1", "NEAT1","KCNMA1","GPNMB", "SLC11A1","HLA-DRA","PLCG2","PLIN2","NUPR1", "VIM","SORL1","HAMP"))
+
+
+############################### this all failed for unknown reasons... sigh
+
+#rerruning, eventually these will all be individual functions, I can sometimes get mixed. up as I just walk through the code
+# Run graph test to identify significantly changing genes along the trajectory
+
+#this is a weird bug with this function thanks to "fjrosello" for the fix https://github.com/cole-trapnell-lab/monocle3/issues/623
+
+
+deg_results <- graph_test(cds, neighbor_graph = 'knn', cores = 4)
+
+# Filter genes with significant q-values (adjusted p-value threshold)
+sig_genes <- deg_results %>%
+  filter(q_value < 0.05) %>%
+  arrange(q_value)  # Rank genes by significance
+
+# View top genes
+
+
+# Select the significant genes for clustering
+gene_module_df <- find_gene_modules(
+  cds[valid_genes, ], 
+  resolution = 1e-3  
+)
+
+
+
+#########################
+
+genes_of_interest <- c("GPNMB")  
+
+plot_genes_in_pseudotime(cds[genes_of_interest, ], min_expr = 0.00001) +
+  theme_minimal() +
+  labs(title = "Expression of Selected Genes Across Pseudotime")
+
+
+genes_of_interest <- c("RAB42")  
+
+plot_genes_in_pseudotime(cds[genes_of_interest, ], min_expr = 0.000001) +
+  theme_minimal() +
+  labs(title = "Expression of Selected Genes Across Pseudotime")
+
+
+
+
+# get and plot pseudotime
+cds$monocle3_pseudotime <- pseudotime(cds)
+data.pseudo <- as.data.frame(colData(cds))
+
+ggplot(data.pseudo, aes(monocle3_pseudotime, ident, fill = ident)) +
+  geom_boxplot()
 
 # Plot GPNMB expression over pseudotime
-plot_genes_in_pseudotime(cds, genes = c("GPNMB"))
+plot_genes_in_pseudotime(cds[c("LPL", "APOE", "GPNMB","SPP1","TREM2")] )
+plot_genes_in_pseudotime(cds[c("LPL", "APOE", "GPNMB","TREM2")] )
 
-# plot variable features 
-plot1 <- VariableFeaturePlot(cluster3.markers)
-plot2 <- LabelPoints(plot = plot1, points = top20, repel = TRUE)
-plot1 + plot2
+plot_genes_in_pseudotime(cds[c("RAB42", "CD74", "CD163","GPNMB")] )
+plot_genes_in_pseudotime(cds[c("P2RY12", "CX3CR1", "TMEM119", "CD74")] )
+
+plot_genes_in_pseudotime(cds["GPNMB"] )
+plot_genes_in_pseudotime(cds["APOE"] )
+plot_genes_in_pseudotime(cds["LPL"] )
+plot_genes_in_pseudotime(cds["SPP1"] )
+plot_genes_in_pseudotime(cds[c("CD74","GPNMB","RAB42","APOE")] )
+
+
+plot_genes_in_pseudotime(cds[c("AIF1")] )
+plot_genes_in_pseudotime(cds[c("RPL27")] )
+
+
+
+plot_genes_in_pseudotime(cds["TREM2"] )
+
+genes_of_interest <- c("GPNMB", "APOE", "TREM2", "CX3CR1","RAB42","CD163")  # Replace with your genes
+
+
+gene_pseudotime_cor <- apply(exprs(cds[genes_of_interest, ]), 1, function(gene_expr) {
+  cor(pseudotime(cds), gene_expr, method = "pearson", use = "complete.obs")
+})
+
+print(gene_pseudotime_cor)
+
+
+genes_of_interest <- c("GPNMB")  # Replace with your genes
+
+pheatmap::pheatmap(
+  exprs(cds[genes_of_interest, ]),
+  cluster_cols = FALSE,
+  scale = "row",
+  main = "Expression of Selected Genes Across Pseudotime"
+)
+
+
+library(ggplot2)
+
+library(ggplot2)
+
+pseudotime_vals <- pseudotime(cds)
+
+for (gene in genes_of_interest) {
+  data <- data.frame(
+    pseudotime = pseudotime_vals,
+    expression = exprs(cds[gene, ]),
+    gene = gene
+  )
+  
+  ggplot(data, aes(x = pseudotime, y = expression)) +
+    geom_point() +
+    geom_smooth(method = "loess") +
+    ggtitle(paste("Expression of", gene, "over Pseudotime")) +
+    theme_minimal()
+}
+
+
+
+# Aggregate expression data for the custom module
+custom_module_expr <- aggregate_gene_expression(cds, "CustomModule")
+
+# Plot the expression of the module over pseudotime
+plot_cells(cds, color_cells_by = "CustomModule") +
+  theme_minimal() +
+  labs(title = "Custom Module Expression Along Pseudotime")
+
+
+
+
+
+
+#let's be a bit more specific with our evals
+
+
+
+
+
+
+
+
+
+
+
+#quick and dirty evaluation of GPNMB correlations across clusters
+
+# Step 1: Extract Expression Data and Cluster Assignments
+expr_data <- microGliaOnly[["RNA"]]@layers[["data"]]
+
+expr_data <- expr_data[, Idents(microGliaOnly) == "Homeostatic"]
+
+
+# Assign row names if missing
+if (is.null(rownames(expr_data))) {
+  rownames(expr_data) <- rownames(microGliaOnly[["RNA"]])
+}
+
+# Verify row names
+head(rownames(expr_data))
+
+# Extract cell cluster identities
+cluster_assignments <- Idents(microGliaOnly)
+
+# Ensure cell names match with expression data
+if (is.null(names(cluster_assignments))) {
+  names(cluster_assignments) <- colnames(expr_data)
+}
+
+# Step 2: Extract GPNMB Expression
+# Find GPNMB row name (case insensitive)
+gpnmb_row_name <- grep("GPNMB", rownames(expr_data), value = TRUE, ignore.case = TRUE)[1]
+
+# Extract the expression data for GPNMB
+gpnmb_expr <- expr_data[gpnmb_row_name, ]
+
+
+# Step 3: Compute Correlations with P-Values
+correlation_results <- apply(expr_data, 1, function(gene_expr) {
+  cor_test <- cor.test(as.numeric(gpnmb_expr), as.numeric(gene_expr), method = "pearson", use = "complete.obs")
+  c(correlation = cor_test$estimate, p_value = cor_test$p.value)
+})
+
+# Convert results to a dataframe
+cor_results <- data.frame(
+  gene = rownames(expr_data),
+  correlation = correlation_results[1, ],
+  p_value = correlation_results[2, ]
+)
+
+# Adjust p-values using the Benjamini-Hochberg method
+cor_results$adjusted_p_value <- p.adjust(cor_results$p_value, method = "BH")
+
+# Remove GPNMB from the results
+cor_results <- cor_results[cor_results$gene != gpnmb_row_name, ]
+
+
+# Step 4: Save and View Results
+#write.csv(cor_results, "GPNMB_correlations.csv", row.names = FALSE)
+
+# View top correlated and anticorrelated genes
+
+# Sort by descending to get positively correlated genes
+top_correlated_genes <- cor_results %>%
+  filter(adjusted_p_value < 0.05) %>%
+  arrange(desc(correlation)) %>%
+  head(50)
+
+# Sort by ascending to get negatively correlated genes
+top_anticorrelated_genes <- cor_results %>%
+  filter(adjusted_p_value < 0.05) %>%
+  arrange(correlation) %>%  # Sorting by correlation in ascending order
+  head(50)
+
+# View the top results
+head(top_correlated_genes, 20)
+head(top_anticorrelated_genes, 20)
+
+# Step 5: Visualization
+library(ggplot2)
+
+ggplot(top_correlated_genes, aes(x = reorder(gene, -correlation), y = correlation)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top GPNMB Correlated Genes", x = "Gene", y = "Correlation") +
+  theme_minimal()
+
+
+ggplot(top_anticorrelated_genes, aes(x = reorder(gene, -correlation), y = correlation)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top GPNMB antiCorrelated Genes", x = "Gene", y = "Correlation") +
+  theme_minimal()
+
+
+
+
+
+
+
+
+# Step 1: Extract Expression Data and Cluster Assignments
+expr_data <- microGliaOnly[["RNA"]]@layers[["data"]]
+
+expr_data <- expr_data[, Idents(microGliaOnly) == "Homeostatic"]
+
+# Assign row names if missing
+if (is.null(rownames(expr_data))) {
+  rownames(expr_data) <- rownames(microGliaOnly[["RNA"]])
+}
+
+# Verify row names
+head(rownames(expr_data))
+
+# Extract cell cluster identities
+cluster_assignments <- Idents(microGliaOnly)
+
+# Ensure cell names match with expression data
+if (is.null(names(cluster_assignments))) {
+  names(cluster_assignments) <- colnames(expr_data)
+}
+
+# Step 2: Extract GPNMB Expression
+# Find GPNMB row name (case insensitive)
+gpnmb_row_name <- grep("GPNMB", rownames(expr_data), value = TRUE, ignore.case = TRUE)[1]
+
+# Extract the expression data for GPNMB
+gpnmb_expr <- expr_data[gpnmb_row_name, ]
+
+# Step 3: Compute Correlations with P-Values
+correlation_results <- apply(expr_data, 1, function(gene_expr) {
+  cor_test <- cor.test(as.numeric(gpnmb_expr), as.numeric(gene_expr), method = "pearson", use = "complete.obs")
+  c(correlation = cor_test$estimate, p_value = cor_test$p.value)
+})
+
+# Convert results to a dataframe
+cor_results <- data.frame(
+  gene = rownames(expr_data),
+  correlation = correlation_results[1, ],
+  p_value = correlation_results[2, ]
+)
+
+# Adjust p-values using the Benjamini-Hochberg method
+cor_results$adjusted_p_value <- p.adjust(cor_results$p_value, method = "BH")
+
+# Remove GPNMB from the results
+cor_results <- cor_results[cor_results$gene != gpnmb_row_name, ]
+
+# Step 4: Save and View Results
+#write.csv(cor_results, "GPNMB_correlations.csv", row.names = FALSE)
+
+# Ensure new variable names for each run
+timestamp <- format(Sys.time(), "%Y%m%d%H%M%S")
+
+assign(paste0("top_correlated_genes_", timestamp), cor_results %>%
+         filter(adjusted_p_value < 0.05) %>%
+         arrange(desc(correlation)) %>%
+         head(50))
+
+assign(paste0("top_anticorrelated_genes_", timestamp), cor_results %>%
+         filter(adjusted_p_value < 0.05) %>%
+         arrange(correlation) %>%
+         head())
+
+head(get(paste0("top_correlated_genes_", timestamp)), 20)
+head(get(paste0("top_anticorrelated_genes_", timestamp)), 20)
+
+# Step 5: Visualization
+library(ggplot2)
+
+ggplot(get(paste0("top_correlated_genes_", timestamp)), aes(x = reorder(gene, correlation), y = correlation)) +
+  geom_bar(stat = "identity",fill='darkred') +
+  coord_flip() +
+  labs(title = "Top GPNMB Correlated Genes Homeostatic Cells", x = "Gene", y = "Correlation") +
+  theme_minimal()
+
+ggplot(get(paste0("top_anticorrelated_genes_", timestamp)), aes(x = reorder(gene, -correlation), y = correlation)) +
+  geom_bar(stat = "identity",fill='darkgreen') +
+  coord_flip() +
+  labs(title = "Top GPNMB antiCorrelated Genes Homeostatic Cells", x= ' ', y = "Correlation") +
+  theme_minimal()
+ 
+
+
+
+
+
+
+
 
 
 # Visualize QC metrics
