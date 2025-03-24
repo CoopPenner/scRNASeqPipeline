@@ -14,11 +14,31 @@ library(monocle3)
 library(SeuratWrappers)
 library(EnhancedVolcano)
 # Define file paths for matrices right now I am excluding the first patient in this paper because the basic read quality metrics were way off
+
+
+
+#PD patient
+#SRR12621863 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621863_S1_Solo.out/Gene/filtered/matrix.mtx",
+#SRR12621864 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621864_S1_Solo.out/Gene/filtered/matrix.mtx",
+#SRR12621865 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621865_S1_Solo.out/Gene/filtered/matrix.mtx",
+#SRR12621862 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621866_S1_Solo.out/Gene/filtered/matrix.mtx"
+
+#control
+#SRR12621868 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621868_S1_Solo.out/Gene/filtered/matrix.mtx",
+#SRR12621869 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621869_S1_Solo.out/Gene/filtered/matrix.mtx",
+#SRR12621870 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621870_S1_Solo.out/Gene/filtered/matrix.mtx",
+#SRR12621871 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621871_S1_Solo.out/Gene/filtered/matrix.mtx"
+
+
+
+# for control pt 67 looks unusable 
 matrix_files <- list(
-  SRR12621863 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621863_S1_Solo.out/Gene/filtered/matrix.mtx",
-  SRR12621864 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621864_S1_Solo.out/Gene/filtered/matrix.mtx",
-  SRR12621865 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621865_S1_Solo.out/Gene/filtered/matrix.mtx",
-  SRR12621862 = "/Users/pennerc/Desktop/starSoloCountMatrices/SRR12621866_S1_Solo.out/Gene/filtered/matrix.mtx"
+  SRR12621868 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621868_S1_Solo.out/Gene/filtered/matrix.mtx",
+  SRR12621869 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621869_S1_Solo.out/Gene/filtered/matrix.mtx",
+  SRR12621870 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621870_S1_Solo.out/Gene/filtered/matrix.mtx",
+  SRR12621871 = "/Users/pennerc/Desktop/STARsolo_Output/SRR12621871_S1_Solo.out/Gene/filtered/matrix.mtx"
+  
+  
 )
 
 # Load data from each matrix and create Seurat objects
@@ -118,15 +138,18 @@ allCells <- FindClusters(allCells, resolution = .5) # find cluster, I didn't mes
 
 allCells <- RunUMAP(allCells, dims = 1:14, n_neighbors=30, min_dist=.3) #run unmap
 
-DimPlot(allCells, reduction = "umap", label='true') #plot it all
+DimPlot(allCells, reduction = "umap", label='false') #plot it all
 
 allCells <- JoinLayers(allCells, assay = "RNA") # got this step from chatgpt, not totally clear on how this seurat object is 
+
+#test for Kathi
+FeaturePlot(allCells, features= c("RAB29","KAT8"))
 
 #let's do a quick screen to confirm what our clusters are
 FeaturePlot(allCells, features = c("GAD2","SLC17A6","GRIK1", "TH", "CADPS2")) 
 
 FeaturePlot(allCells, features = c("VCAN","MOBP","AQP4","FOXJ1", "PDGFRB","CLDN5","CD74","TTR"))
-FeaturePlot(allCells, features = c("CD74","CD163"))
+FeaturePlot(allCells, features = c("CD74","CD163","GPNMB"))
 
 
 allCells <- JoinLayers(allCells, assay = "RNA") # got this step from chatgpt, not totally clear on how this seurat object is designed, kinda weird to work w/
@@ -151,14 +174,20 @@ head(cluster0.markers, n = 50)
 #13 is CSF1R expressing oligodendrocytes
 # 14 is gabaergic neurons
 
+# for HC only cluster 8 is microglia
 
 
 
 
 
+#new.cluster.ids <- c("Oligo 1", "Oligo 2", "Microglia", "Oligo 3", "Oligo 4", "OPCs", "Astrocyte1","Endothelial Cells", "Excitatory Neurons", "Astrocyte2",  
+             #        "Pericytes", "Ependymal cells", "Oligo 5", "CSF1R expressing Oligo", "Gabaergic Neurons")
 
-new.cluster.ids <- c("Oligo 1", "Oligo 2", "Microglia", "Oligo 3", "Oligo 4", "OPCs", "Astrocyte1","Endothelial Cells", "Excitatory Neurons", "Astrocyte2",  
-                     "Pericytes", "Ependymal cells", "Oligo 5", "CSF1R expressing Oligo", "Gabaergic Neurons")
+
+new.cluster.ids <- c("Oligo 1", "Oligo 2", "Oligo 3", "Oligo 4", "Astrocyte", "Oligo 5", "OPCs","Endothelial Cells", "Microglia", "Pericytes", "Ependymal", "Excitatory", "Inhibitory", "Gabaergic")
+
+
+
 names(new.cluster.ids) <- levels(allCells)
 allCells <- RenameIdents(allCells, new.cluster.ids)
 DimPlot(allCells, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
@@ -171,7 +200,7 @@ DimPlot(allCells, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 
 
 # Define a detection threshold 
-gpnmb_expression <- FetchData(allCells, vars = "GPNMB")
+gpnmb_expression <- FetchData(allCells, vars = "RAB29")
 
 # Convert to binary
 gpnmb_detected <- gpnmb_expression > 0
@@ -186,7 +215,7 @@ allCells$cluster_names <- Idents(allCells)
 
 
 # Fetch GPNMB expression and convert to binary (expressed or not)
-gpnmb_expression <- FetchData(allCells, vars = "GPNMB")
+gpnmb_expression <- FetchData(allCells, vars = "RAB29")
 gpnmb_detected <- gpnmb_expression > 1
 
 # Add the binary GPNMB expression to the metadata
@@ -204,9 +233,9 @@ library(ggplot2)
 ggplot(gpnmb_proportion, aes(x = cluster_names, y = Proportion, fill = cluster_names)) +
   geom_bar(stat = "identity") +
   theme_minimal() +
-  labs(title = "Proportion of GPNMB+ Cells Across  Identified Cell Types",
+  labs(title = "Proportion of RAB29 + Cells Across  Identified Cell Types in Control Patients",
        x = "Cluster",
-       y = "Proportion of GPNMB+ Cells") +
+       y = "Proportion of RAB29 + Cells") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
@@ -216,8 +245,20 @@ ggplot(gpnmb_proportion, aes(x = cluster_names, y = Proportion, fill = cluster_n
 microGliaOnly <- subset(allCells, idents = "Microglia")
 
 
-FeaturePlot(microGliaOnly, features = c("P2RY12","CX3CR1","TMEM119", "CD74","CD163","GPNMB","APOE","LPL","PTPRG","SPP1", "CLEC7A","TREM2"))
-FeaturePlot(microGliaOnly, features = c("AIF1"))
+
+#this was just for the HC data!!
+# Use DimPlot to visually select cells interactively
+picked_cells <- CellSelector(DimPlot(microGliaOnly, reduction = "umap"))
+
+# Subset the Seurat object to just these selected cells
+manually_selected <- subset(microGliaOnly, cells = picked_cells)
+
+FeaturePlot(manually_selected, features = c("P2RY12","CX3CR1","TMEM119", "CD74","CD163","GPNMB","APOE","LPL","HSPA5","HSP90AB1", "CLEC7A","TREM2"))
+microGliaOnly<- manually_selected
+
+
+FeaturePlot(microGliaOnly, features = c("P2RY12","CX3CR1","TMEM119", "CD74","CD163","GPNMB","APOE","LPL","HSPA5","HSP90AB1", "CLEC7A","TREM2"))
+FeaturePlot(microGliaOnly, features = c("GPNMB"))
 
 
 FeaturePlot(microGliaOnly, features = c("P2RY12","CX3CR1","GPNMB","APOE",  "HSP90AA1","IL1B"))
@@ -254,10 +295,14 @@ microGliaOnly <- FindClusters(microGliaOnly, resolution = 0.25)
 # Visualize the clusters within microglia
 DimPlot(microGliaOnly, reduction = "umap", label = TRUE)
 
-new.cluster.ids <- c("Homeostatic", "Transition","DAM","Homeostatic2")
+#new.cluster.ids <- c("Homeostatic", "Transition","DAM","Homeostatic2")
+new.cluster.ids <- c("Homeostatic", "Transition","DAM")
 names(new.cluster.ids) <- levels(microGliaOnly)
 microGliaOnly <- RenameIdents(microGliaOnly, new.cluster.ids)
 
+
+
+#FindMarkers(microGliaOnly, ident.1 = "Homeostatic", ident.2 = "DAM")
 
 
 
@@ -381,6 +426,10 @@ plot_cells(cds, color_cells_by= 'cluster')
 
 
 cds_subset <- choose_cells(cds) #here I subset because there was a tiny cluster away from the primary homeostatic bunch that heavily weighted psuedotime output
+
+
+
+
 
 cds <- order_cells(cds_subset, reduction_method= 'UMAP', root_cells = colnames(cds_subset[,clusters(cds_subset) == 'Homeostatic'] ))
 
@@ -508,7 +557,7 @@ plot_genes_in_pseudotime(cds[c("RPL27")] )
 
 plot_genes_in_pseudotime(cds["TREM2"] )
 
-genes_of_interest <- c("GPNMB", "APOE", "TREM2", "CX3CR1","RAB42","CD163")  # Replace with your genes
+genes_of_interest <- c("GPNMB", "APOE", "TREM2", "CX3CR1","RAB42","CD163")  
 
 
 gene_pseudotime_cor <- apply(exprs(cds[genes_of_interest, ]), 1, function(gene_expr) {
@@ -518,7 +567,7 @@ gene_pseudotime_cor <- apply(exprs(cds[genes_of_interest, ]), 1, function(gene_e
 print(gene_pseudotime_cor)
 
 
-genes_of_interest <- c("GPNMB")  # Replace with your genes
+genes_of_interest <- c("GPNMB")  
 
 pheatmap::pheatmap(
   exprs(cds[genes_of_interest, ]),
@@ -580,7 +629,6 @@ plot_cells(cds, color_cells_by = "CustomModule") +
 # Step 1: Extract Expression Data and Cluster Assignments
 expr_data <- microGliaOnly[["RNA"]]@layers[["data"]]
 
-expr_data <- expr_data[, Idents(microGliaOnly) == "Homeostatic"]
 
 
 # Assign row names if missing
@@ -636,17 +684,17 @@ cor_results <- cor_results[cor_results$gene != gpnmb_row_name, ]
 top_correlated_genes <- cor_results %>%
   filter(adjusted_p_value < 0.05) %>%
   arrange(desc(correlation)) %>%
-  head(50)
+  head(10)
 
 # Sort by ascending to get negatively correlated genes
 top_anticorrelated_genes <- cor_results %>%
   filter(adjusted_p_value < 0.05) %>%
   arrange(correlation) %>%  # Sorting by correlation in ascending order
-  head(50)
+  head(10)
 
 # View the top results
-head(top_correlated_genes, 20)
-head(top_anticorrelated_genes, 20)
+head(top_correlated_genes, 10)
+head(top_anticorrelated_genes, 10)
 
 # Step 5: Visualization
 library(ggplot2)
