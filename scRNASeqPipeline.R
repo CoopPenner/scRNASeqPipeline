@@ -200,7 +200,7 @@ DimPlot(allCells, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 
 
 # Define a detection threshold 
-gpnmb_expression <- FetchData(allCells, vars = "RAB29")
+gpnmb_expression <- FetchData(allCells, vars = "GPNMB")
 
 # Convert to binary
 gpnmb_detected <- gpnmb_expression > 0
